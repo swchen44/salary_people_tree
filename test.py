@@ -108,12 +108,8 @@ avg_salary = df["人員年薪"].mean()
 avg_bonus = df["人員獎金"].mean()
 avg_perf = df["人員考績"].mean()
 
-# KPI 目標
-goal_salary = 200000
-goal_bonus = 20000
-goal_perf = 7
-
-# 實際值（篩選後）
+# 實際值（篩選前 KPI 還沒用到）
+# filtered_df 尚未定義，延後處理於後面正確位置
 actual_count = len(filtered_df)
 actual_salary = filtered_df["人員年薪"].mean()
 actual_bonus = filtered_df["人員獎金"].mean()
@@ -129,6 +125,28 @@ col3.metric("🎯 平均考績", f"{actual_perf:.2f} 分", delta=f"達標率 {(a
 col4.metric("👥 人數", f"{actual_count} / {total_count}")
 
 # 篩選與顯示
+filtered_df = df[
+    df["公司地點"].isin(selected_city) &
+    df["單位"].isin(selected_unit) &
+    df["人員考績"].between(performance_range[0], performance_range[1])
+]
+if search_name:
+    filtered_df = filtered_df[filtered_df["人員名字"].str.contains(search_name)]
+
+# 實際值（篩選後）
+actual_count = len(filtered_df)
+actual_salary = filtered_df["人員年薪"].mean()
+actual_bonus = filtered_df["人員獎金"].mean()
+actual_perf = filtered_df["人員考績"].mean()
+
+# KPI 顯示 + 達標率（含顏色）
+def get_delta_color(value, goal):
+    return "normal" if pd.isna(value) else ("inverse" if value < goal else "off")
+
+col1.metric("🎯 平均年薪", f"{actual_salary:,.0f} 元", delta=f"達標率 {(actual_salary / goal_salary * 100):.1f}%", delta_color=get_delta_color(actual_salary, goal_salary))
+col2.metric("🎯 平均獎金", f"{actual_bonus:,.0f} 元", delta=f"達標率 {(actual_bonus / goal_bonus * 100):.1f}%", delta_color=get_delta_color(actual_bonus, goal_bonus))
+col3.metric("🎯 平均考績", f"{actual_perf:.2f} 分", delta=f"達標率 {(actual_perf / goal_perf * 100):.1f}%", delta_color=get_delta_color(actual_perf, goal_perf))
+col4.metric("👥 人數", f"{actual_count} / {total_count}")
 filtered_df = df[
     df["公司地點"].isin(selected_city) &
     df["單位"].isin(selected_unit) &
