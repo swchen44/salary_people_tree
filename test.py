@@ -36,6 +36,24 @@ df = pd.DataFrame(records)
 df["總薪資"] = df["人員年薪"] + df["人員獎金"]
 df["重要程度"] = df["人員年薪"] * df["人員考績"]
 
+# 加總與平均欄位（單位級）
+grouped_unit = df.groupby(["公司地點", "單位"]).agg({
+    "人員年薪": ["sum", "mean"],
+    "人員獎金": ["sum", "mean"],
+    "人員名字": "count"
+}).reset_index()
+grouped_unit.columns = ["公司地點", "單位", "單位總年薪", "單位平均年薪", "單位總獎金", "單位平均獎金", "單位人數"]
+df = df.merge(grouped_unit, on=["公司地點", "單位"], how="left")
+
+# 加總與平均欄位（城市級）
+grouped_city = df.groupby("公司地點").agg({
+    "人員年薪": ["sum", "mean"],
+    "人員獎金": ["sum", "mean"],
+    "人員名字": "count"
+}).reset_index()
+grouped_city.columns = ["公司地點", "城市總年薪", "城市平均年薪", "城市總獎金", "城市平均獎金", "城市人數"]
+df = df.merge(grouped_city, on="公司地點", how="left")
+
 st.title("公司員工結構視覺化")
 st.caption("可篩選公司地點、單位、人員姓名與考績分數，依重要程度呈現")
 
@@ -65,7 +83,7 @@ max_n = len(filtered_df)
 top_n = st.slider("顯示 Top N 重要程度最高人員（可選）:", 1, max_n, min(100, max_n))
 filtered_df = filtered_df.sort_values("重要程度", ascending=False).head(top_n)
 
-# Treemap 顯示（依重要程度）
+# Treemap 顯示
 st.subheader("Treemap（依重要程度）")
 fig = px.treemap(
     filtered_df,
@@ -73,34 +91,37 @@ fig = px.treemap(
     values="重要程度",
     color=color_field,
     color_continuous_scale=color_scale,
-    hover_data={"人員年薪": True, "人員獎金": True, "人員考績": True, "總薪資": True, "重要程度": True}
+    hover_data={
+        "人員年薪": True,
+        "人員獎金": True,
+        "人員考績": True,
+        "總薪資": True,
+        "重要程度": True,
+        "單位總年薪": True,
+        "單位總獎金": True,
+        "單位平均年薪": True,
+        "單位平均獎金": True,
+        "單位人數": True,
+        "城市總年薪": True,
+        "城市總獎金": True,
+        "城市平均年薪": True,
+        "城市平均獎金": True,
+        "城市人數": True
+    }
 )
 st.plotly_chart(fig, use_container_width=True)
 
-# Sunburst 顯示（依重要程度）
-st.subheader("Sunburst（依重要程度）")
-fig2 = px.sunburst(
-    filtered_df,
-    path=["公司地點", "單位", "人員名字"],
-    values="重要程度",
-    color="人員考績",
-    color_continuous_scale="Bluered_r",
-    hover_data={"人員年薪": True, "人員獎金": True, "人員考績": True, "總薪資": True, "重要程度": True}
-)
-st.plotly_chart(fig2, use_container_width=True)
+# 城市級統計視覺化
+st.subheader("城市級平均年薪與獎金比較")
+city_avg = df.groupby("公司地點").agg({"人員年薪": "mean", "人員獎金": "mean"}).reset_index()
+fig4 = px.bar(city_avg, x="公司地點", y=["人員年薪", "人員獎金"], barmode="group", title="各城市平均年薪與獎金")
+st.plotly_chart(fig4, use_container_width=True)
 
-# Bar Chart（Top 人員重要程度排行）
-st.subheader("Top 員工重要程度條形圖")
-bar_df = filtered_df.sort_values("重要程度", ascending=False).head(20)
-fig3 = px.bar(
-    bar_df,
-    x="人員名字",
-    y="重要程度",
-    color="人員考績",
-    hover_data=["公司地點", "單位", "人員年薪", "人員獎金"],
-    title="Top 20 員工依重要程度排序"
-)
-st.plotly_chart(fig3, use_container_width=True)
+# 單位年薪占比圓餅圖（僅限篩選後）
+st.subheader("單位總年薪佔比（圓餅圖）")
+unit_sum = filtered_df.groupby("單位")["人員年薪"].sum().reset_index()
+fig5 = px.pie(unit_sum, names="單位", values="人員年薪", title="單位總年薪佔比")
+st.plotly_chart(fig5, use_container_width=True)
 
 # 匯出資料表格
 st.subheader("篩選後資料表格")
