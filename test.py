@@ -34,18 +34,24 @@ for city in cities:
 # 建立 DataFrame
 df = pd.DataFrame(records)
 df["總薪資"] = df["人員年薪"] + df["人員獎金"]
-df["人員要重程度"] = df["人員年薪"] * df["人員考績"]
+df["重要程度"] = df["人員年薪"] * df["人員考績"]
 
 st.title("公司員工結構視覺化")
-st.caption("可篩選公司地點、單位、人員姓名與考績分數，依要重程度呈現")
+st.caption("可篩選公司地點、單位、人員姓名與考績分數，依重要程度呈現")
 
 # 搜尋與篩選
 selected_city = st.multiselect("選擇公司地點:", options=sorted(df["公司地點"].unique()), default=sorted(df["公司地點"].unique()))
 selected_unit = st.multiselect("選擇單位:", options=sorted(df["單位"].unique()), default=sorted(df["單位"].unique()))
 search_name = st.text_input("輸入人員姓名關鍵字（可選）")
 performance_range = st.slider("選擇考績分數範圍:", 1, 10, (1, 10))
-top_n = st.slider("顯示 Top N 要重程度最高人員（可選）:", 1, 100, 100)
 
+# 選擇 Treemap 分層結構與顏色來源
+path_options = ["公司地點", "單位", "人員名字"]
+treemap_path = st.multiselect("Treemap 顯示層級:", options=path_options, default=path_options)
+color_field = st.selectbox("選擇顏色依據欄位:", options=["人員年薪", "人員獎金", "人員考績", "總薪資", "重要程度"], index=0)
+color_scale = st.selectbox("選擇顏色樣式:", options=["RdBu", "Viridis", "Cividis", "Blues", "Inferno"], index=0)
+
+# 篩選與 Top N
 filtered_df = df[
     df["公司地點"].isin(selected_city) &
     df["單位"].isin(selected_unit) &
@@ -55,30 +61,54 @@ filtered_df = df[
 if search_name:
     filtered_df = filtered_df[filtered_df["人員名字"].str.contains(search_name)]
 
-# 依要重程度排序顯示前 N 名（避免圖太大）
-filtered_df = filtered_df.sort_values("人員要重程度", ascending=False).head(top_n)
+max_n = len(filtered_df)
+top_n = st.slider("顯示 Top N 重要程度最高人員（可選）:", 1, max_n, min(100, max_n))
+filtered_df = filtered_df.sort_values("重要程度", ascending=False).head(top_n)
 
-# Treemap 顯示（依人員要重程度）
-st.subheader("Treemap（依人員要重程度）")
+# Treemap 顯示（依重要程度）
+st.subheader("Treemap（依重要程度）")
 fig = px.treemap(
     filtered_df,
-    path=["公司地點", "單位", "人員名字"],
-    values="人員要重程度",
-    color="人員年薪",
-    color_continuous_scale="RdBu",
-    hover_data={"人員年薪": True, "人員獎金": True, "人員考績": True, "人員要重程度": True}
+    path=treemap_path,
+    values="重要程度",
+    color=color_field,
+    color_continuous_scale=color_scale,
+    hover_data={"人員年薪": True, "人員獎金": True, "人員考績": True, "總薪資": True, "重要程度": True}
 )
 st.plotly_chart(fig, use_container_width=True)
 
-# Sunburst 顯示（可選）
-st.subheader("Sunburst（依人員要重程度）")
+# Sunburst 顯示（依重要程度）
+st.subheader("Sunburst（依重要程度）")
 fig2 = px.sunburst(
     filtered_df,
     path=["公司地點", "單位", "人員名字"],
-    values="人員要重程度",
+    values="重要程度",
     color="人員考績",
     color_continuous_scale="Bluered_r",
-    hover_data={"人員年薪": True, "人員獎金": True, "人員考績": True, "人員要重程度": True}
+    hover_data={"人員年薪": True, "人員獎金": True, "人員考績": True, "總薪資": True, "重要程度": True}
 )
 st.plotly_chart(fig2, use_container_width=True)
 
+# Bar Chart（Top 人員重要程度排行）
+st.subheader("Top 員工重要程度條形圖")
+bar_df = filtered_df.sort_values("重要程度", ascending=False).head(20)
+fig3 = px.bar(
+    bar_df,
+    x="人員名字",
+    y="重要程度",
+    color="人員考績",
+    hover_data=["公司地點", "單位", "人員年薪", "人員獎金"],
+    title="Top 20 員工依重要程度排序"
+)
+st.plotly_chart(fig3, use_container_width=True)
+
+# 匯出資料表格
+st.subheader("篩選後資料表格")
+st.dataframe(filtered_df)
+
+st.download_button(
+    label="下載篩選後資料（CSV）",
+    data=filtered_df.to_csv(index=False).encode("utf-8-sig"),
+    file_name="filtered_employees.csv",
+    mime="text/csv"
+)
